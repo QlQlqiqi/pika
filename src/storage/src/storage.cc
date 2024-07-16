@@ -93,6 +93,7 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
   mkpath(db_path.c_str(), 0755);
 
   int inst_count = db_instance_num_;
+  storage_options_ = storage_options;
   for (int index = 0; index < inst_count; index++) {
     insts_.emplace_back(std::make_unique<Redis>(this, index));
     Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
@@ -1701,6 +1702,8 @@ Status Storage::RunBGTask() {
 
     if (task.operation == kCleanAll) {
       DoCompactRange(task.type, "", "");
+    } else if (task.operation == kCompactOldestOrBestDeleteRatioSst) {
+      LongestNotCompactiontSstCompact(task.type, true);
     } else if (task.operation == kCompactRange) {
       if (task.argv.size() == 1) {
         DoCompactSpecificKey(task.type, task.argv[0]);
@@ -1718,6 +1721,25 @@ Status Storage::Compact(const DataType& type, bool sync) {
     return DoCompactRange(type, "", "");
   } else {
     AddBGTask({type, kCleanAll});
+  }
+  return Status::OK();
+}
+
+Status Storage::LongestNotCompactiontSstCompact(const DataType &type, bool sync) {
+  if (sync) {
+    Status s;
+    for (const auto& inst : insts_) {
+      std::vector<rocksdb::Status> compact_result_vec;
+      s = inst->LongestNotCompactiontSstCompact(type, &compact_result_vec);
+      for (auto compact_result : compact_result_vec) {
+        if (!compact_result.ok()) {
+          LOG(ERROR) << compact_result.ToString();
+        }
+      }
+    }
+    return s;
+  } else {
+    AddBGTask({type, kCompactOldestOrBestDeleteRatioSst});
   }
   return Status::OK();
 }
@@ -1740,6 +1762,9 @@ Status Storage::DoCompactRange(const DataType& type, const std::string& start, c
   for (const auto& inst : insts_) {
     current_task_type_ = Operation::kCleanAll;
     s = inst->CompactRange(start_ptr, end_ptr);
+    if (!s.ok()) {
+      LOG(ERROR) << "DoCompactRange error: " << s.ToString();
+    }
   }
   current_task_type_ = Operation::kNone;
   return s;
@@ -1927,6 +1952,10 @@ void Storage::GetRocksDBInfo(std::string& info) {
     snprintf(temp, sizeof(temp), "instance%d_", inst->GetIndex());
     inst->GetRocksDBInfo(info, temp);
   }
+}
+
+const StorageOptions& Storage::GetStorageOptions() {
+  return storage_options_;
 }
 
 int64_t Storage::IsExist(const Slice& key, std::map<DataType, Status>* type_status) {

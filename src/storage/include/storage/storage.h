@@ -71,6 +71,15 @@ struct StorageOptions {
   size_t statistics_max_size = 0;
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
+  struct CompactParam {
+    // for LongestNotCompactiontSstCompact function
+    int compact_every_num_of_files_;
+    int force_compact_file_age_seconds_;
+    int force_compact_min_delete_ratio_;
+    int dont_compact_sst_created_in_seconds_;
+    int best_delete_min_ratio_;
+  };
+  CompactParam compact_param_;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 
@@ -153,7 +162,8 @@ enum BitOpType { kBitOpAnd = 1, kBitOpOr, kBitOpXor, kBitOpNot, kBitOpDefault };
 enum Operation {
   kNone = 0,
   kCleanAll,
-  kCompactRange
+  kCompactRange,
+  kCompactOldestOrBestDeleteRatioSst,
 };
 
 struct BGTask {
@@ -1069,6 +1079,13 @@ class Storage {
   Status CompactRange(const DataType& type, const std::string& start, const std::string& end, bool sync = false);
   Status DoCompactRange(const DataType& type, const std::string& start, const std::string& end);
   Status DoCompactSpecificKey(const DataType& type, const std::string& key);
+  /**
+   * LongestNotCompactiontSstCompact will execute the compact command for any cf in the given type
+   * @param type. data type like `kStrings`
+   * @param sync. if true, block function
+   * @return Status
+  */
+  Status LongestNotCompactiontSstCompact(const DataType &type, bool sync = false);
 
   Status SetMaxCacheStatisticKeys(uint32_t max_cache_statistic_keys);
   Status SetSmallCompactionThreshold(uint32_t small_compaction_threshold);
@@ -1093,6 +1110,8 @@ class Storage {
                     const std::string& db_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
 
+  const StorageOptions& GetStorageOptions();
+
  private:
   std::vector<std::unique_ptr<Redis>> insts_;
   std::unique_ptr<SlotIndexer> slot_indexer_;
@@ -1100,6 +1119,7 @@ class Storage {
   int db_instance_num_ = 3;
   int slot_num_ = 1024;
   bool is_classic_mode_ = true;
+  StorageOptions storage_options_;
 
   std::unique_ptr<LRUCache<std::string, std::string>> cursors_store_;
 
