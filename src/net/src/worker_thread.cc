@@ -104,6 +104,8 @@ void* WorkerThread::ThreadMain() {
 
     nfds = net_multiplexer_->NetPoll(timeout);
 
+    NetItem ti;
+    NetMultiplexer::Node *tmp = nullptr;
     for (int i = 0; i < nfds; i++) {
       pfe = (net_multiplexer_->FiredEvents()) + i;
       if (!pfe) {
@@ -112,44 +114,50 @@ void* WorkerThread::ThreadMain() {
       if (pfe->fd == net_multiplexer_->NotifyReceiveFd()) {
         if ((pfe->mask & kReadable) != 0) {
           auto nread = static_cast<int32_t>(read(net_multiplexer_->NotifyReceiveFd(), bb, 2048));
-          if (nread == 0) {
+          auto first = net_multiplexer_->NotifyQueuePop();
+          if(first == nullptr) {
             continue;
           } else {
-            for (int32_t idx = 0; idx < nread; ++idx) {
-              NetItem ti = net_multiplexer_->NotifyQueuePop();
-              if (ti.notify_type() == kNotiConnect) {
-                std::shared_ptr<NetConn> tc = conn_factory_->NewNetConn(ti.fd(), ti.ip_port(), server_thread_,
-                                                                        private_data_, net_multiplexer_.get());
-                if (!tc || !tc->SetNonblock()) {
-                  continue;
-                }
+            do {
+              ti = first->it_;
+              tmp = first;
+              first = first->Next();
+              delete tmp;
+              {
+                if (ti.notify_type() == kNotiConnect) {
+                  std::shared_ptr<NetConn> tc = conn_factory_->NewNetConn(ti.fd(), ti.ip_port(), server_thread_,
+                                                                          private_data_, net_multiplexer_.get());
+                  if (!tc || !tc->SetNonblock()) {
+                    continue;
+                  }
 
 #ifdef __ENABLE_SSL
-                // Create SSL failed
-                if (server_thread_->security() && !tc->CreateSSL(server_thread_->ssl_ctx())) {
-                  CloseFd(tc);
-                  continue;
-                }
+                  // Create SSL failed
+                  if (server_thread_->security() && !tc->CreateSSL(server_thread_->ssl_ctx())) {
+                    CloseFd(tc);
+                    continue;
+                  }
 #endif
 
-                {
-                  std::lock_guard lock(rwlock_);
-                  conns_[ti.fd()] = tc;
+                  {
+                    std::lock_guard lock(rwlock_);
+                    conns_[ti.fd()] = tc;
+                  }
+                  net_multiplexer_->NetAddEvent(ti.fd(), kReadable);
+                } else if (ti.notify_type() == kNotiClose) {
+                  // should close?
+                } else if (ti.notify_type() == kNotiEpollout) {
+                  net_multiplexer_->NetModEvent(ti.fd(), 0, kWritable);
+                } else if (ti.notify_type() == kNotiEpollin) {
+                  net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable);
+                } else if (ti.notify_type() == kNotiEpolloutAndEpollin) {
+                  net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable | kWritable);
+                } else if (ti.notify_type() == kNotiWait) {
+                  // do not register events
+                  net_multiplexer_->NetAddEvent(ti.fd(), 0);
                 }
-                net_multiplexer_->NetAddEvent(ti.fd(), kReadable);
-              } else if (ti.notify_type() == kNotiClose) {
-                // should close?
-              } else if (ti.notify_type() == kNotiEpollout) {
-                net_multiplexer_->NetModEvent(ti.fd(), 0, kWritable);
-              } else if (ti.notify_type() == kNotiEpollin) {
-                net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable);
-              } else if (ti.notify_type() == kNotiEpolloutAndEpollin) {
-                net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable | kWritable);
-              } else if (ti.notify_type() == kNotiWait) {
-                // do not register events
-                net_multiplexer_->NetAddEvent(ti.fd(), 0);
               }
-            }
+            } while (first != nullptr);
           }
         } else {
           continue;

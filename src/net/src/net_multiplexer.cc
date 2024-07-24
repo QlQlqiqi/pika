@@ -25,6 +25,9 @@ NetMultiplexer::NetMultiplexer(int queue_limit) : queue_limit_(queue_limit), fir
 
   fcntl(notify_receive_fd_, F_SETFD, fcntl(notify_receive_fd_, F_GETFD) | FD_CLOEXEC);
   fcntl(notify_send_fd_, F_SETFD, fcntl(notify_send_fd_, F_GETFD) | FD_CLOEXEC);
+
+  node_cnt_ = 0;
+  newest_node_ = nullptr;
 }
 
 NetMultiplexer::~NetMultiplexer() {
@@ -38,18 +41,20 @@ void NetMultiplexer::Initialize() {
   init_ = true;
 }
 
-NetItem NetMultiplexer::NotifyQueuePop() {
+NetMultiplexer::Node* NetMultiplexer::NotifyQueuePop() {
   if (!init_) {
     LOG(ERROR) << "please call NetMultiplexer::Initialize()";
     std::abort();
   }
 
-  NetItem it;
-  notify_queue_protector_.lock();
-  it = notify_queue_.front();
-  notify_queue_.pop();
-  notify_queue_protector_.unlock();
-  return it;
+  Node *first = nullptr;
+  auto last = newest_node_.exchange(nullptr);
+  int cnt = 1;
+  if(last) {
+    first = CreateMissingNewerLinks(last, &cnt);
+    node_cnt_ -= cnt;
+  }
+  return first;
 }
 
 bool NetMultiplexer::Register(const NetItem& it, bool force) {
@@ -58,18 +63,37 @@ bool NetMultiplexer::Register(const NetItem& it, bool force) {
     return false;
   }
 
-  bool success = false;
-  notify_queue_protector_.lock();
-  if (force || queue_limit_ == kUnlimitedQueue || notify_queue_.size() < static_cast<size_t>(queue_limit_)) {
-    notify_queue_.push(it);
-    success = true;
-  }
-  notify_queue_protector_.unlock();
-  if (success) {
+  auto cnt = ++node_cnt_;
+  if (force || queue_limit_ == kUnlimitedQueue || cnt < static_cast<size_t>(queue_limit_)) {
+    auto node = new Node(it);
+    LinkOne(node, &newest_node_);
     ssize_t n = write(notify_send_fd_, "", 1);
-    (void)(n);
+    return true;
   }
-  return success;
+  return false;
+}
+
+NetMultiplexer::Node* NetMultiplexer::CreateMissingNewerLinks(Node* head, int* cnt) {
+  Node* next = nullptr;
+  while (true) {
+    next = head->link_older;
+    if (next == nullptr) {
+      return head;
+    }
+    ++(*cnt);
+    next->link_newer = head;
+    head = next;
+  }
+}
+
+bool NetMultiplexer::LinkOne(Node* node, std::atomic<Node*>* newest_node) {
+  auto nodes = newest_node->load(std::memory_order_relaxed);
+  while (true) {
+    node->link_older = nodes;
+    if (newest_node->compare_exchange_weak(nodes, node)) {
+      return (nodes == nullptr);
+    }
+  }
 }
 
 }  // namespace net

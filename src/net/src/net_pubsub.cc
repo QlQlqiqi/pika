@@ -413,17 +413,27 @@ void* PubSubThread::ThreadMain() {
   std::shared_ptr<NetConn> in_conn = nullptr;
   char triger[1];
 
+    NetItem ti;
+    NetMultiplexer::Node *tmp = nullptr;
+  char bb[2048];
   while (!should_stop()) {
     nfds = net_multiplexer_->NetPoll(NET_CRON_INTERVAL);
     for (int i = 0; i < nfds; i++) {
       pfe = (net_multiplexer_->FiredEvents()) + i;
       if (pfe->fd == net_multiplexer_->NotifyReceiveFd()) {  // New connection comming
         if (pfe->mask & kReadable) {
-          ssize_t n = read(net_multiplexer_->NotifyReceiveFd(), triger, 1);
-          (void)(n);
-          {
-            NetItem ti = net_multiplexer_->NotifyQueuePop();
-            if (ti.notify_type() == kNotiClose) {
+    auto nread = static_cast<int32_t>(read(net_multiplexer_->NotifyReceiveFd(), bb, 2048));
+          auto first = net_multiplexer_->NotifyQueuePop();
+          if(first == nullptr) {
+            continue;
+          }
+          do {
+              ti = first->it_;
+              tmp = first;
+              first = first->Next();
+              delete tmp;
+              {
+                if (ti.notify_type() == kNotiClose) {
             } else if (ti.notify_type() == kNotiEpollout) {
               net_multiplexer_->NetModEvent(ti.fd(), 0, kWritable);
             } else if (ti.notify_type() == kNotiEpollin) {
@@ -434,7 +444,8 @@ void* PubSubThread::ThreadMain() {
               // do not register events
               net_multiplexer_->NetAddEvent(ti.fd(), 0);
             }
-          }
+              }
+            } while (first != nullptr);
           continue;
         }
       }

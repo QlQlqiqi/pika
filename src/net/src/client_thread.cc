@@ -304,68 +304,75 @@ void ClientThread::NotifyWrite(const std::string& ip_port) {
 }
 
 void ClientThread::ProcessNotifyEvents(const NetFiredEvent* pfe) {
-  if (pfe->mask & kReadable) {
+    NetItem ti;
+    NetMultiplexer::Node *tmp = nullptr;
     char bb[2048];
-    int64_t nread = read(net_multiplexer_->NotifyReceiveFd(), bb, 2048);
-    if (nread == 0) {
-      return;
-    } else {
-      for (int32_t idx = 0; idx < nread; ++idx) {
-        NetItem ti = net_multiplexer_->NotifyQueuePop();
-        std::string ip_port = ti.ip_port();
-        int fd = ti.fd();
-        if (ti.notify_type() == kNotiWrite) {
-          if (ipport_conns_.find(ip_port) == ipport_conns_.end()) {
-            std::string ip;
-            int port = 0;
-            if (!pstd::ParseIpPortString(ip_port, ip, port)) {
-              continue;
-            }
-            Status s = ScheduleConnect(ip, port);
-            if (!s.ok()) {
-              std::string ip_port = ip + ":" + std::to_string(port);
-              handle_->DestConnectFailedHandle(ip_port, s.ToString());
-              LOG(INFO) << "Ip " << ip << ", port " << port << " Connect err " << s.ToString();
-              continue;
-            }
-          } else {
-            // connection exist
-            net_multiplexer_->NetModEvent(ipport_conns_[ip_port]->fd(), 0, kReadable | kWritable);
-          }
-          std::vector<std::string> msgs;
+    if (pfe->mask & kReadable) {
+    auto nread = static_cast<int32_t>(read(net_multiplexer_->NotifyReceiveFd(), bb, 2048));
+      auto first = net_multiplexer_->NotifyQueuePop();
+      if (first == nullptr) {
+        return;
+      } else {
+        do {
+          ti = first->it_;
+          tmp = first;
+          first = first->Next();
+          delete tmp;
           {
-            std::lock_guard l(mu_);
-            auto iter = to_send_.find(ip_port);
-            if (iter == to_send_.end()) {
-              continue;
+            std::string ip_port = ti.ip_port();
+            int fd = ti.fd();
+            if (ti.notify_type() == kNotiWrite) {
+              if (ipport_conns_.find(ip_port) == ipport_conns_.end()) {
+                std::string ip;
+                int port = 0;
+                if (!pstd::ParseIpPortString(ip_port, ip, port)) {
+                  continue;
+                }
+                Status s = ScheduleConnect(ip, port);
+                if (!s.ok()) {
+                  std::string ip_port = ip + ":" + std::to_string(port);
+                  handle_->DestConnectFailedHandle(ip_port, s.ToString());
+                  LOG(INFO) << "Ip " << ip << ", port " << port << " Connect err " << s.ToString();
+                  continue;
+                }
+              } else {
+                // connection exist
+                net_multiplexer_->NetModEvent(ipport_conns_[ip_port]->fd(), 0, kReadable | kWritable);
+              }
+              std::vector<std::string> msgs;
+              {
+                std::lock_guard l(mu_);
+                auto iter = to_send_.find(ip_port);
+                if (iter == to_send_.end()) {
+                  continue;
+                }
+                msgs.swap(iter->second);
+              }
+              // get msg from to_send_
+              std::vector<std::string> send_failed_msgs;
+              for (auto& msg : msgs) {
+                if (ipport_conns_[ip_port]->WriteResp(msg)) {
+                  send_failed_msgs.push_back(msg);
+                }
+              }
+              std::lock_guard l(mu_);
+              if (!send_failed_msgs.empty()) {
+                send_failed_msgs.insert(send_failed_msgs.end(), to_send_[ip_port].begin(), to_send_[ip_port].end());
+                send_failed_msgs.swap(to_send_[ip_port]);
+                NotifyWrite(ip_port);
+              }
+            } else if (ti.notify_type() == kNotiClose) {
+              LOG(INFO) << "received kNotiClose";
+              net_multiplexer_->NetDelEvent(fd, 0);
+              CloseFd(fd, ip_port);
+              fd_conns_.erase(fd);
+              ipport_conns_.erase(ip_port);
+              connecting_fds_.erase(fd);
             }
-            msgs.swap(iter->second);
           }
-          // get msg from to_send_
-          std::vector<std::string> send_failed_msgs;
-          for (auto& msg : msgs) {
-            if (ipport_conns_[ip_port]->WriteResp(msg)) {
-              send_failed_msgs.push_back(msg);
-            }
-          }
-          std::lock_guard l(mu_);
-          if (!send_failed_msgs.empty()) {
-            send_failed_msgs.insert(send_failed_msgs.end(), to_send_[ip_port].begin(),
-                                    to_send_[ip_port].end());
-            send_failed_msgs.swap(to_send_[ip_port]);
-            NotifyWrite(ip_port);
-          }
-        } else if (ti.notify_type() == kNotiClose) {
-          LOG(INFO) << "received kNotiClose";
-          net_multiplexer_->NetDelEvent(fd, 0);
-          CloseFd(fd, ip_port);
-          fd_conns_.erase(fd);
-          ipport_conns_.erase(ip_port);
-          connecting_fds_.erase(fd);
-        }
+        } while (first != nullptr);
       }
     }
-  }
 }
 
 void* ClientThread::ThreadMain() {

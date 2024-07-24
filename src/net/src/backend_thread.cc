@@ -311,45 +311,53 @@ void BackendThread::NotifyClose(const int fd) {
 }
 
 void BackendThread::ProcessNotifyEvents(const NetFiredEvent* pfe) {
+  NetItem ti;
+  NetMultiplexer::Node *tmp = nullptr;
+  char bb[2048];
   if (pfe->mask & kReadable) {
-    char bb[2048];
-    int64_t nread = read(net_multiplexer_->NotifyReceiveFd(), bb, 2048);
-    if (nread == 0) {
+    auto nread = static_cast<int32_t>(read(net_multiplexer_->NotifyReceiveFd(), bb, 2048));
+    auto first = net_multiplexer_->NotifyQueuePop();
+    if (first == nullptr) {
       return;
     } else {
-      for (int32_t idx = 0; idx < nread; ++idx) {
-        NetItem ti = net_multiplexer_->NotifyQueuePop();
-        int fd = ti.fd();
-        std::string ip_port = ti.ip_port();
-        std::lock_guard l(mu_);
-        if (ti.notify_type() == kNotiWrite) {
-          if (conns_.find(fd) == conns_.end()) {
-            // TODO(): need clean and notify?
-            continue;
-          } else {
-            // connection exist
-            net_multiplexer_->NetModEvent(fd, 0, kReadable | kWritable);
-          }
-          {
-            auto iter = to_send_.find(fd);
-            if (iter == to_send_.end()) {
+      do {
+        ti = first->it_;
+        tmp = first;
+        first = first->Next();
+        delete tmp;
+        {
+          int fd = ti.fd();
+          std::string ip_port = ti.ip_port();
+          std::lock_guard l(mu_);
+          if (ti.notify_type() == kNotiWrite) {
+            if (conns_.find(fd) == conns_.end()) {
+              // TODO(): need clean and notify?
               continue;
+            } else {
+              // connection exist
+              net_multiplexer_->NetModEvent(fd, 0, kReadable | kWritable);
             }
-            // get msg from to_send_
-            std::vector<std::string>& msgs = iter->second;
-            for (auto& msg : msgs) {
-              conns_[fd]->WriteResp(msg);
+            {
+              auto iter = to_send_.find(fd);
+              if (iter == to_send_.end()) {
+                continue;
+              }
+              // get msg from to_send_
+              std::vector<std::string>& msgs = iter->second;
+              for (auto& msg : msgs) {
+                conns_[fd]->WriteResp(msg);
+              }
+              to_send_.erase(iter);
             }
-            to_send_.erase(iter);
+          } else if (ti.notify_type() == kNotiClose) {
+            LOG(INFO) << "received kNotiClose";
+            net_multiplexer_->NetDelEvent(fd, 0);
+            CloseFd(fd);
+            conns_.erase(fd);
+            connecting_fds_.erase(fd);
           }
-        } else if (ti.notify_type() == kNotiClose) {
-          LOG(INFO) << "received kNotiClose";
-          net_multiplexer_->NetDelEvent(fd, 0);
-          CloseFd(fd);
-          conns_.erase(fd);
-          connecting_fds_.erase(fd);
         }
-      }
+      } while (first != nullptr);
     }
   }
 }

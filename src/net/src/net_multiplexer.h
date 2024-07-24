@@ -5,6 +5,7 @@
 
 #ifndef NET_SRC_NET_MULTIPLEXER_H_
 #define NET_SRC_NET_MULTIPLEXER_H_
+#include <atomic>
 #include <queue>
 #include <vector>
 
@@ -34,7 +35,23 @@ class NetMultiplexer {
 
   int NotifyReceiveFd() const { return notify_receive_fd_; }
   int NotifySendFd() const { return notify_send_fd_; }
-  NetItem NotifyQueuePop();
+  struct Node;
+  Node* NotifyQueuePop();
+
+  struct Node {
+    Node* link_older = nullptr;
+    Node* link_newer = nullptr;
+    NetItem it_;
+
+    explicit Node(const NetItem& it) : it_(it) {}
+
+    inline Node* Next() { return link_newer; }
+  };
+  std::atomic<uint32_t> node_cnt_;
+  std::atomic<Node*> newest_node_;
+
+  Node* CreateMissingNewerLinks(Node* head, int* cnt);
+  bool LinkOne(Node* node, std::atomic<Node*>* newest_node);
 
   bool Register(const NetItem& it, bool force);
 

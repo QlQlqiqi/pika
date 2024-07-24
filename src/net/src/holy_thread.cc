@@ -277,14 +277,20 @@ bool HolyThread::KillConn(const std::string& ip_port) {
 }
 
 void HolyThread::ProcessNotifyEvents(const net::NetFiredEvent* pfe) {
+  NetItem ti;
+  NetMultiplexer::Node* tmp = nullptr;
+  char bb[2048];
   if (pfe->mask & kReadable) {
-    char bb[2048];
-    int64_t nread = read(net_multiplexer_->NotifyReceiveFd(), bb, 2048);
-    if (nread == 0) {
+    auto nread = static_cast<int32_t>(read(net_multiplexer_->NotifyReceiveFd(), bb, 2048));
+    auto first = net_multiplexer_->NotifyQueuePop();
+    if (first == nullptr) {
       return;
     } else {
-      for (int32_t idx = 0; idx < nread; ++idx) {
-        net::NetItem ti = net_multiplexer_->NotifyQueuePop();
+      do {
+        ti = first->it_;
+        tmp = first;
+        first = first->Next();
+        delete tmp;
         std::string ip_port = ti.ip_port();
         int fd = ti.fd();
         if (ti.notify_type() == net::kNotiWrite) {
@@ -302,7 +308,7 @@ void HolyThread::ProcessNotifyEvents(const net::NetFiredEvent* pfe) {
             conns_.erase(fd);
           }
         }
-      }
+      } while (first != nullptr);
     }
   }
 }
