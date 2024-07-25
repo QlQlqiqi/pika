@@ -87,7 +87,8 @@ jobs:
       - name: Install deps
         run: |
           dnf update -y
-          dnf install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar g++ tar epel-release gcc-c++ libstdc++-devel gcc-toolset-13
+          dnf --enablerepo=crb install -y libstdc++-static
+          dnf install -y cmake wget git autoconf gcc perl-Digest-SHA tcl which tar g++ tar epel-release gcc-c++ libstdc++-devel
 
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -101,7 +102,6 @@ jobs:
 
       - name: Configure CMake
         run: |
-          source /opt/rh/gcc-toolset-13/enable
           cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address .
 
       - uses: actions/cache@v3
@@ -116,7 +116,6 @@ jobs:
 
       - name: Build
         run: |
-          source /opt/rh/gcc-toolset-13/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
       - name: Test

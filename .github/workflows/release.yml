@@ -57,7 +57,8 @@ jobs:
       - name: Install deps
         run: |
           dnf update -y
-          dnf install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar g++ tar epel-release gcc-c++ libstdc++-devel gcc-toolset-13
+          dnf --enablerepo=crb install -y libstdc++-static
+          dnf install -y cmake wget git autoconf gcc perl-Digest-SHA tcl which tar g++ tar epel-release gcc-c++ libstdc++-devel
 
       - name: Checkout sources
         uses: actions/checkout@v3
