@@ -10,9 +10,6 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: RelWithDebInfo
   ARTIFACT_PIKA_NAME: artifact-pika
-  ROCKY_BASEURL_BASE: https://mirrors.aliyun.com/rockylinux/9.4/BaseOS/\$basearch/os/
-  ROCKY_BASEURL_EXTRAS: https://mirrors.aliyun.com/rockylinux/9.4/extras/\$basearch/os/
-  ROCKY_BASEURL_PLUS: https://mirrors.aliyun.com/rockylinux/9.4/plus/\$basearch/os/
 
 jobs:
   build_on_ubuntu:
@@ -87,33 +84,6 @@ jobs:
       image: rockylinux:9
 
     steps:
-      - name: set up mirror
-        run: |
-          rm -rf /etc/yum.repos.d/Rocky-Base.repo
-          cat > /etc/yum.repos.d/Rocky-Base.repo << EOL
-          [base]
-          name=Rocky-\$releasever - Base
-          baseurl=${{ env.ROCKY_BASEURL_BASE }}
-          gpgcheck=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
-          [extras]
-          name=Rocky-\$releasever - Extras
-          baseurl=${{ env.ROCKY_BASEURL_EXTRAS }}
-          gpgcheck=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
-          [rockyplus]
-          name=rockylinux-\$releasever - Plus
-          baseurl=${{ env.ROCKY_BASEURL_PLUS }}
-          gpgcheck=1
-          enabled=0
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
-          EOL
-
-          rpm --import https://mirrors.jlu.edu.cn/rocky/RPM-GPG-KEY-Rocky-9
-
-          dnf clean all
-          dnf makecache
-
       - name: Install deps
         run: |
           dnf update -y
