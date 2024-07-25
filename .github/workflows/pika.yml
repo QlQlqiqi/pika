@@ -83,6 +83,12 @@ jobs:
     container:
       image: rockylinux:9
 
+    env:
+      ROCKY_VERSION: ${{ 9.4 }}
+      BASEURL_BASE: https://mirrors.aliyun.com/rockylinux/${{ env.ROCKY_VERSION }}/BaseOS/\$basearch/os/
+      BASEURL_EXTRAS: https://mirrors.aliyun.com/rockylinux/${{ env.ROCKY_VERSION }}/extras/\$basearch/os/
+      BASEURL_PLUS: https://mirrors.aliyun.com/rockylinux/${{ env.ROCKY_VERSION }}/plus/\$basearch/os/
+
     steps:
       - name: set up mirror
         run: |
@@ -90,17 +96,17 @@ jobs:
           cat > /etc/yum.repos.d/Rocky-Base.repo << EOL
           [base]
           name=Rocky-\$releasever - Base
-          baseurl=${{ secrets.ROCKY_BASE_URL }}
+          baseurl=${{ ROCKY_BASE_URL }}
           gpgcheck=1
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
           [extras]
           name=Rocky-\$releasever - Extras
-          baseurl=${{ secrets.ROCKY_EXTRAS_URL }}
+          baseurl=${{ ROCKY_EXTRAS_URL }}
           gpgcheck=1
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
           [rockyplus]
           name=rockylinux-\$releasever - Plus
-          baseurl=${{ secrets.ROCKY_PLUS_URL }}
+          baseurl=${{ ROCKY_PLUS_URL }}
           gpgcheck=1
           enabled=0
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
