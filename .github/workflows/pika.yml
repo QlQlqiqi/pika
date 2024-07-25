@@ -10,7 +10,7 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: RelWithDebInfo
   ARTIFACT_PIKA_NAME: artifact-pika
-  ROCKY_VERSION: ${{ 9.4 }}
+  ROCKY_VERSION: 9.4
   ROCKY_BASEURL_BASE: https://mirrors.aliyun.com/rockylinux/${{ env.ROCKY_VERSION }}/BaseOS/\$basearch/os/
   ROCKY_BASEURL_EXTRAS: https://mirrors.aliyun.com/rockylinux/${{ env.ROCKY_VERSION }}/extras/\$basearch/os/
   ROCKY_BASEURL_PLUS: https://mirrors.aliyun.com/rockylinux/${{ env.ROCKY_VERSION }}/plus/\$basearch/os/
