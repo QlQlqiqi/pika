@@ -93,17 +93,17 @@ jobs:
           cat > /etc/yum.repos.d/Rocky-Base.repo << EOL
           [base]
           name=Rocky-\$releasever - Base
-          baseurl=${{ ROCKY_BASEURL_BASE }}
+          baseurl=${{ env.ROCKY_BASEURL_BASE }}
           gpgcheck=1
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
           [extras]
           name=Rocky-\$releasever - Extras
-          baseurl=${{ ROCKY_BASEURL_EXTRAS }}
+          baseurl=${{ env.ROCKY_BASEURL_EXTRAS }}
           gpgcheck=1
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
           [rockyplus]
           name=rockylinux-\$releasever - Plus
-          baseurl=${{ ROCKY_BASEURL_PLUS }}
+          baseurl=${{ env.ROCKY_BASEURL_PLUS }}
           gpgcheck=1
           enabled=0
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky
