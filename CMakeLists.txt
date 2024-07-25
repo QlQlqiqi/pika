@@ -22,6 +22,8 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   endif()
 endif()
 
+link_directories(/usr/lib64)
+
 ############# You should enable sanitizer if you are developing pika #############
 # Uncomment the following two lines to enable AddressSanitizer to detect memory leaks and other memory-related bugs.
 #set(CMAKE_BUILD_TYPE "Debug")
