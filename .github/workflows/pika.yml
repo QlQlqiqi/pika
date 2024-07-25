@@ -104,10 +104,10 @@ jobs:
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address .
 
-      - uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/deps
-          key: ${{ runner.os }}-rocky-deps-${{ hashFiles('**/CMakeLists.txt') }}
+      # - uses: actions/cache@v3
+      #   with:
+      #     path: ${{ github.workspace }}/deps
+      #     key: ${{ runner.os }}-rocky-deps-${{ hashFiles('**/CMakeLists.txt') }}
 
       - uses: actions/cache@v3
         with:
