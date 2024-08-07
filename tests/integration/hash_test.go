@@ -2,6 +2,7 @@ package pika_integration
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -368,13 +369,12 @@ var _ = Describe("Hash Commands", func() {
 		//})
 		It("HSet cmd with too large key should not in cache", func() {
 			key := strings.Repeat("A", 1000)
-			set := client.HSet(ctx, key, "field", "value", 0)
-			Expect(set.Err()).NotTo(HaveOccurred())
-			Expect(set.Val()).To(Equal("OK"))
+			hset := client.HSet(ctx, key, "field", "value")
+			Expect(hset.Err()).NotTo(HaveOccurred())
 
-			get := client.HGet(ctx, key, "field")
-			Expect(get.Err()).NotTo(HaveOccurred())
-			Expect(get.Val()).To(Equal("value"))
+			hget := client.HGet(ctx, key, "field")
+			Expect(hget.Err()).NotTo(HaveOccurred())
+			Expect(hget.Val()).To(Equal("value"))
 
 			// for timer task doing its job
 			time.Sleep(5 * time.Second)
@@ -382,6 +382,7 @@ var _ = Describe("Hash Commands", func() {
 			info := client.Info(ctx, "cache")
 			Expect(info.Err()).NotTo(HaveOccurred())
 			Expect(info.Val()).NotTo(Equal(""))
+			fmt.Println(info.Val());
 			Expect(info.Val()).To(ContainSubstring(`cache_keys`))
 			cache_keys := extractValue(info.Val(), "cache_keys")
 			Expect(strings.Contains(cache_keys, "0")).To(BeTrue())

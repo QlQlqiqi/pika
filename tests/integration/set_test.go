@@ -2,6 +2,7 @@ package pika_integration
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -421,6 +422,7 @@ var _ = Describe("Set Commands", func() {
 			info := client.Info(ctx, "cache")
 			Expect(info.Err()).NotTo(HaveOccurred())
 			Expect(info.Val()).NotTo(Equal(""))
+			fmt.Println(info.Val());
 			Expect(info.Val()).To(ContainSubstring(`cache_keys`))
 			cache_keys := extractValue(info.Val(), "cache_keys")
 			Expect(strings.Contains(cache_keys, "0")).To(BeTrue())
