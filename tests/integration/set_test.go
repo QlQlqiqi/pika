@@ -2,6 +2,7 @@ package pika_integration
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/bsm/ginkgo/v2"
@@ -403,5 +404,39 @@ var _ = Describe("Set Commands", func() {
 			Expect(sMembers.Err()).NotTo(HaveOccurred())
 			Expect(sMembers.Val()).To(HaveLen(5))
 		})
+
+		It("Set cmd with too large key should not in cache", func() {
+			key := strings.Repeat("A", 1000)
+			set := client.Set(ctx, key, "a", 0)
+			Expect(set.Err()).NotTo(HaveOccurred())
+			Expect(set.Val()).To(Equal("OK"))
+
+			get := client.Get(ctx, key)
+			Expect(get.Err()).NotTo(HaveOccurred())
+			Expect(get.Val()).To(Equal("a"))
+
+			// for timer task doing its job
+			time.Sleep(5 * time.Second)
+
+			info := client.Info(ctx, "cache")
+			Expect(info.Err()).NotTo(HaveOccurred())
+			Expect(info.Val()).NotTo(Equal(""))
+			Expect(info.Val()).To(ContainSubstring(`cache_keys`))
+			cache_keys := extractValue(info.Val(), "cache_keys")
+			Expect(strings.Contains(cache_keys, "0")).To(BeTrue())
+		})
 	})
 })
+
+func extractValue(data, key string) string {
+	lines := strings.Split(data, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, key+":") {
+			parts := strings.Split(line, ":")
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		}
+	}
+	return ""
+}

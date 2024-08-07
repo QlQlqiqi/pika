@@ -3,6 +3,7 @@ package pika_integration
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	. "github.com/bsm/ginkgo/v2"
@@ -365,5 +366,25 @@ var _ = Describe("Hash Commands", func() {
 		//		Equal([]redis.KeyValue{{Key: "key2", Value: "hello2"}}),
 		//	))
 		//})
+		It("HSet cmd with too large key should not in cache", func() {
+			key := strings.Repeat("A", 1000)
+			set := client.HSet(ctx, key, "field", "value", 0)
+			Expect(set.Err()).NotTo(HaveOccurred())
+			Expect(set.Val()).To(Equal("OK"))
+
+			get := client.HGet(ctx, key, "field")
+			Expect(get.Err()).NotTo(HaveOccurred())
+			Expect(get.Val()).To(Equal("value"))
+
+			// for timer task doing its job
+			time.Sleep(5 * time.Second)
+
+			info := client.Info(ctx, "cache")
+			Expect(info.Err()).NotTo(HaveOccurred())
+			Expect(info.Val()).NotTo(Equal(""))
+			Expect(info.Val()).To(ContainSubstring(`cache_keys`))
+			cache_keys := extractValue(info.Val(), "cache_keys")
+			Expect(strings.Contains(cache_keys, "0")).To(BeTrue())
+		})
 	})
 })
