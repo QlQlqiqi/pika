@@ -9,6 +9,9 @@ function install_deps() {
   elif [[ $OS == *"ubuntu"* ]]; then
     sudo apt-get install -y autoconf libprotobuf-dev protobuf-compiler
     sudo apt-get install -y clang-tidy-12
+  elif [[ $OS == *"centos"* ]]; then
+    source /opt/rh/devtoolset-10/enable
+    cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
   elif [[ $OS == *"rocky"* ]]; then
     sudo dnf update -y
     sudo dnf install -y bash cmake
