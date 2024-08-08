@@ -157,9 +157,17 @@ jobs:
           yum install -y devtoolset-10-gcc devtoolset-10-gcc-c++ devtoolset-10-make devtoolset-10-bin-util
           yum install -y llvm-toolset-7 llvm-toolset-7-clang tcl which 
       - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.19
+        # uses: actions/setup-go@v3
+        # with:
+        #   go-version: 1.19
+        run: |
+          wget https://golang.org/dl/go1.19.linux-amd64.tar.gz
+          tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
+          # echo "export GO111MODULE=on" >> ~/.bashrc
+          echo "export GOROOT=/usr/local/go " >> ~/.bashrc
+          echo "export GOPATH=/usr/local/gopath" >> ~/.bashrc
+          echo "export PATH=$PATH:$GOROOT/bin" >> ~/.bashrc
+          source ~/.bashrc
 
       - name: Install cmake
         run: |
