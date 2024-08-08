@@ -22,6 +22,9 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   endif()
 endif()
 
+if(${OS_VERSION} MATCHES "Rocky")
+  link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+endif()
 
 ############# You should enable sanitizer if you are developing pika #############
 # Uncomment the following two lines to enable AddressSanitizer to detect memory leaks and other memory-related bugs.
@@ -159,7 +162,7 @@ ExternalProject_Add(gtest
   make -j${CPU_CORE}
 )
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(GTEST_LIBRARY ${INSTALL_LIBDIR_64}/libgtest.a)
   set(GTEST_MAIN_LIBRARY ${INSTALL_LIBDIR_64}/libgtest_main.a)
   set(GMOCK_LIBRARY ${INSTALL_LIBDIR_64}/libgmock.a)
@@ -282,7 +285,7 @@ else()
   set(LIB_GLOG libglog.a)
 endif()
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(GLOG_LIBRARY ${INSTALL_LIBDIR_64}/${LIB_GLOG})
 else()
   set(GLOG_LIBRARY ${INSTALL_LIBDIR}/${LIB_GLOG})
@@ -317,7 +320,7 @@ ExternalProject_Add(snappy
   make -j${CPU_CORE}
 )
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(SNAPPY_LIBRARY ${INSTALL_LIBDIR_64}/libsnappy.a)
 else()
   set(SNAPPY_LIBRARY ${INSTALL_LIBDIR}/libsnappy.a)
@@ -355,7 +358,7 @@ ExternalProject_Add(zstd
   make -j${CPU_CORE}
 )
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(ZSTD_LIBRARY ${INSTALL_LIBDIR_64}/libzstd.a)
 else()
   set(ZSTD_LIBRARY ${INSTALL_LIBDIR}/libzstd.a)
@@ -394,7 +397,7 @@ else()
   set(LIB_FMT libfmt.a)
 endif()
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(FMT_LIBRARY ${INSTALL_LIBDIR_64}/${LIB_FMT})
 else()
   set(FMT_LIBRARY ${INSTALL_LIBDIR}/${LIB_FMT})
@@ -432,7 +435,7 @@ ExternalProject_Add(lz4
   make -j${CPU_CORE}
 )
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(LZ4_LIBRARY ${INSTALL_LIBDIR_64}/liblz4.a)
 else()
   set(LZ4_LIBRARY ${INSTALL_LIBDIR}/liblz4.a)
@@ -719,7 +722,7 @@ if (USE_PIKA_TOOLS)
   set(BZ2_LIBRARY ${INSTALL_LIBDIR}/libbz2.a)
 endif()
 
-if(${OS_VERSION} MATCHES "CentOS")
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
   set(ROCKSDB_LIBRARY ${INSTALL_LIBDIR_64}/librocksdb.a)
 else()
   set(ROCKSDB_LIBRARY ${INSTALL_LIBDIR}/librocksdb.a)
