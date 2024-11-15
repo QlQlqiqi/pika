@@ -94,6 +94,7 @@ message InnerRequest {
     required BinlogOffset ack_range_start = 4;
     required BinlogOffset ack_range_end   = 5;
     required int32        session_id      = 6;
+    required bool         succ            = 7;
   }
 
   message RemoveSlaveNode {
@@ -180,5 +181,5 @@ message InnerResponse {
   repeated RemoveSlaveNode remove_slave_node = 8;
   // consensus use
   optional ConsensusMeta   consensus_meta    = 9;
-  repeated DbWriteSync     db_write_sync     = 10;
+  optional DbWriteSync     db_write_sync     = 10;
 }
