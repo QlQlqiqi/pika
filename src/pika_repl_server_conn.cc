@@ -370,6 +370,11 @@ void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
     return;
   }
 
+  // if some binlog has been writen in all slaves, we should trye to send cmd to apply
+  // them in db in all slaves
+  BinlogOffset write_db_offset;
+  g_pika_rm->TrySendWriteDb();
+
   g_pika_server->SignalAuxiliary();
 }
 

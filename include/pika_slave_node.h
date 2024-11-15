@@ -69,6 +69,8 @@ class SlaveNode : public RmNode {
   SyncWindow sync_win;
   LogOffset sent_offset;
   LogOffset acked_offset;
+  LogOffset db_sent_offset;
+  LogOffset db_acked_offset;
 
   std::string ToStringStatus();
 

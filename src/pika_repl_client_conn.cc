@@ -82,6 +82,9 @@ int PikaReplClientConn::DealMessage() {
                                           static_cast<void*>(task_arg));
       break;
     }
+    case InnerMessage::kDbWrite: {
+      DispatchDbWritegRes(response);
+    }
     default:
       break;
   }
@@ -267,6 +270,34 @@ void PikaReplClientConn::DispatchBinlogRes(const std::shared_ptr<InnerMessage::I
     g_pika_rm->ScheduleWriteBinlogTask(binlog_nums.first.db_name_, res,
                                        std::dynamic_pointer_cast<PikaReplClientConn>(shared_from_this()),
                                        reinterpret_cast<void*>(binlog_nums.second));
+  }
+}
+
+void PikaReplClientConn::DispatchDbWritegRes(const std::shared_ptr<InnerMessage::InnerResponse>& res) {
+  // db to a bunch of db write chips
+  std::unordered_map<DBInfo, std::vector<int>*, hash_db_info> par_db_write;
+  for (int i = 0; i < res->db_write_sync_size(); ++i) {
+    const InnerMessage::InnerResponse::DbWriteSync& db_write_res = res->db_write_sync(i);
+    // hash key: db
+    DBInfo p_info(db_write_res.slot().db_name());
+    if (par_db_write.find(p_info) == par_db_write.end()) {
+      par_db_write[p_info] = new std::vector<int>();
+    }
+    par_db_write[p_info]->push_back(i);
+  }
+
+  std::shared_ptr<SyncSlaveDB> slave_db;
+  for (auto& db_write_nums : par_db_write) {
+    RmNode node(db_write_nums.first.db_name_);
+    slave_db = g_pika_rm->GetSyncSlaveDBByName(DBInfo(db_write_nums.first.db_name_));
+    if (!slave_db) {
+      LOG(WARNING) << "Slave DB: " << db_write_nums.first.db_name_ << " not exist";
+      break;
+    }
+    slave_db->SetLastRecvTime(pstd::NowMicros());
+    g_pika_rm->ScheduleWriteDbWriteTask(db_write_nums.first.db_name_, res,
+                                        std::dynamic_pointer_cast<PikaReplClientConn>(shared_from_this()),
+                                        reinterpret_cast<void*>(db_write_nums.second));
   }
 }
 

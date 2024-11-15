@@ -34,6 +34,8 @@ class PikaReplClientConn : public net::PbConn {
  private:
   // dispatch binlog by its db_name
   void DispatchBinlogRes(const std::shared_ptr<InnerMessage::InnerResponse>& response);
+  // dispatch db write by its db_name
+  void DispatchDbWritegRes(const std::shared_ptr<InnerMessage::InnerResponse>& response);
 };
 
 #endif

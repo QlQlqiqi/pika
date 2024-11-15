@@ -167,6 +167,107 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
   g_pika_rm->SendBinlogSyncAckRequest(db_name, ack_start, ack_end);
 }
 
+void PikaReplBgWorker::HandleBGWorkerDbWrite(void* arg) {
+  auto task_arg = static_cast<ReplClientWriteDbWriteTaskArg*>(arg);
+  const std::shared_ptr<InnerMessage::InnerResponse> res = task_arg->res;
+  std::shared_ptr<net::PbConn> conn = task_arg->conn;
+  auto index = static_cast<std::vector<int>*>(task_arg->res_private_data);
+  PikaReplBgWorker* worker = task_arg->worker;
+  worker->ip_port_ = conn->ip_port();
+
+  DEFER {
+    delete index;
+    delete task_arg;
+  };
+
+  std::string db_name;
+
+  LogOffset pb_begin;
+  LogOffset pb_end;
+
+  for (size_t i = 0; i < index->size(); ++i) {
+    const InnerMessage::InnerResponse::DbWriteSync& db_write_res = res->db_write_sync((*index)[i]);
+    if (i == 0) {
+      db_name = db_write_res.slot().db_name();
+    }
+    ParseBinlogOffset(db_write_res.db_write_offset(), &pb_begin);
+    break;
+  }
+
+  for (int i = static_cast<int>(index->size() - 1); i >= 0; i--) {
+    const InnerMessage::InnerResponse::DbWriteSync& db_write_res = res->db_write_sync((*index)[i]);
+    ParseBinlogOffset(db_write_res.db_write_offset(), &pb_end);
+    break;
+  }
+
+  if(pb_begin == LogOffset()||pb_end == LogOffset()) {
+    LOG(WARNING) << "error offset in db write";
+    return;
+  }
+
+  LogOffset ack_start = pb_begin;
+
+  // because DispatchDbWriteRes() have been order them.
+  worker->db_name_ = db_name;
+
+  std::shared_ptr<SyncMasterDB> db =
+      g_pika_rm->GetSyncMasterDBByName(DBInfo(db_name));
+  if (!db) {
+    LOG(WARNING) << "DB " << db_name << " Not Found";
+    return;
+  }
+
+  std::shared_ptr<SyncSlaveDB> slave_db =
+      g_pika_rm->GetSyncSlaveDBByName(DBInfo(db_name));
+  if (!slave_db) {
+    LOG(WARNING) << "Slave DB " << db_name << " Not Found";
+    return;
+  }
+
+  for (int i : *index) {
+    const InnerMessage::InnerResponse::DbWriteSync& db_write_res = res->db_write_sync(i);
+    // if pika are not current a slave or DB not in
+    // DbWriteSync state, we drop remain write db write task
+    if (((g_pika_server->role() & PIKA_ROLE_SLAVE) == 0) ||
+        ((slave_db->State() != ReplState::kConnected) && (slave_db->State() != ReplState::kWaitDBSync))) {
+      return;
+    }
+
+    if (slave_db->MasterSessionId() != db_write_res.session_id()) {
+      LOG(WARNING) << "Check SessionId Mismatch: " << slave_db->MasterIp() << ":"
+                   << slave_db->MasterPort() << ", " << slave_db->SyncDBInfo().ToString()
+                   << " expected_session: " << db_write_res.session_id()
+                   << ", actual_session:" << slave_db->MasterSessionId();
+      LOG(WARNING) << "Check Session failed " << db_write_res.slot().db_name();
+      slave_db->SetReplState(ReplState::kTryConnect);
+      return;
+    }
+
+    auto off = db_write_res.db_write_offset();
+    worker->binlog_item_.set_offset(off.offset());
+    worker->binlog_item_.set_filenum(off.filenum());
+    worker->binlog_item_.set_term_id(off.term());
+
+    net::RedisParserStatus ret = worker->redis_parser_.ProcessInputBuffer(nullptr, 0, nullptr);
+    if (ret != net::kRedisParserDone) {
+      LOG(WARNING) << "Redis parser failed";
+      slave_db->SetReplState(ReplState::kTryConnect);
+      return;
+    }
+  }
+
+  LogOffset ack_end;
+  LogOffset productor_status;
+  // Reply Ack to master immediately
+  std::shared_ptr<Binlog> logger = db->Logger();
+  logger->GetProducerStatus(&productor_status.b_offset.filenum, &productor_status.b_offset.offset,
+                            &productor_status.l_offset.term, &productor_status.l_offset.index);
+  ack_end = productor_status;
+  ack_end.l_offset.term = pb_end.l_offset.term;
+
+  g_pika_rm->SendBinlogSyncAckRequest(db_name, ack_start, ack_end);
+}
+
 int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::RedisCmdArgsType& argv) {
   std::string opt = argv[0];
   auto worker = static_cast<PikaReplBgWorker*>(parser->data);

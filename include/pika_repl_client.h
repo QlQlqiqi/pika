@@ -42,6 +42,17 @@ struct ReplClientWriteBinlogTaskArg {
       : res(_res), conn(_conn), res_private_data(_res_private_data), worker(_worker) {}
 };
 
+struct ReplClientWriteDbWriteTaskArg {
+  std::shared_ptr<InnerMessage::InnerResponse> res;
+  std::shared_ptr<net::PbConn> conn;
+  void* res_private_data;
+  PikaReplBgWorker* worker;
+  ReplClientWriteDbWriteTaskArg(const std::shared_ptr<InnerMessage::InnerResponse>& _res,
+                               const std::shared_ptr<net::PbConn>& _conn,
+                               void* _res_private_data, PikaReplBgWorker* _worker)
+      : res(_res), conn(_conn), res_private_data(_res_private_data), worker(_worker) {}
+};
+
 struct ReplClientWriteDBTaskArg {
   const std::shared_ptr<Cmd> cmd_ptr;
   explicit ReplClientWriteDBTaskArg(std::shared_ptr<Cmd> _cmd_ptr)
@@ -63,6 +74,8 @@ class PikaReplClient {
   void Schedule(net::TaskFunc func, void* arg);
   void ScheduleByDBName(net::TaskFunc func, void* arg, const std::string& db_name);
   void ScheduleWriteBinlogTask(const std::string& db_name, const std::shared_ptr<InnerMessage::InnerResponse>& res,
+                               const std::shared_ptr<net::PbConn>& conn, void* res_private_data);
+  void ScheduleWriteDbWriteTask(const std::string& db_name, const std::shared_ptr<InnerMessage::InnerResponse>& res,
                                const std::shared_ptr<net::PbConn>& conn, void* res_private_data);
   void ScheduleWriteDBTask(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& db_name);
 

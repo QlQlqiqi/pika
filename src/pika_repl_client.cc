@@ -118,6 +118,14 @@ void PikaReplClient::ScheduleWriteBinlogTask(const std::string& db_name,
   write_binlog_workers_[index]->Schedule(&PikaReplBgWorker::HandleBGWorkerWriteBinlog, static_cast<void*>(task_arg));
 }
 
+void PikaReplClient::ScheduleWriteDbWriteTask(const std::string& db_name,
+                                             const std::shared_ptr<InnerMessage::InnerResponse>& res,
+                                             const std::shared_ptr<net::PbConn>& conn, void* res_private_data) {
+  size_t index = GetBinlogWorkerIndexByDBName(db_name);
+  auto task_arg = new ReplClientWriteDbWriteTaskArg(res, conn, res_private_data, write_binlog_workers_[index].get());
+  write_binlog_workers_[index]->Schedule(&PikaReplBgWorker::HandleBGWorkerDbWrite, static_cast<void*>(task_arg));
+}
+
 void PikaReplClient::ScheduleWriteDBTask(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& db_name) {
   const PikaCmdArgsType& argv = cmd_ptr->argv();
   std::string dispatch_key = argv.size() >= 2 ? argv[1] : argv[0];
